@@ -8,8 +8,25 @@ Usage:
 from setuptools import setup
 
 APP = ['Investments.py']
+APP_NAME = 'Investments'
+
 DATA_FILES = []
-OPTIONS = {'argv_emulation': True}
+
+PLIST = {
+    'CFBundleName': APP_NAME,
+    'CFBundleDisplayName': APP_NAME,
+    'CFBundleGetInfoString': 'Visualize investments',
+    'CFBundleIdentifier': 'com.eightbits.osx.investments',
+    'CFBundleVersion': '0.1.0',
+    'CFBundleShortVersionString': '0.1.0',
+    'NSHumanReadableCopyright': 'Copyright 2016, Shawn Wallis, All Rights Reserved'
+}
+
+OPTIONS = {
+    'argv_emulation': True,
+    'iconfile': 'res/app.icns',
+    'plist': PLIST,
+}
 
 setup(
     app=APP,
