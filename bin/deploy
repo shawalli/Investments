@@ -12,7 +12,7 @@ echo "Removing prior builds of app"
 rm -rf build/ dist/
 
 echo "Building app"
-python setup.py py2app
+python setup.py py2app $@
 
 echo
 echo "Done."
