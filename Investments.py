@@ -13,6 +13,17 @@ VERSION="0.1.0"
 WIDTH = 400
 HEIGHT = 400
 
+RGB_COLORS = [
+    "#5DA5DA", # blue
+    "#FAA43A", # orange
+    "#60BD68", # green
+    "#F17CB0", # pink
+    "#B2912F", # brown
+    "#DECF3F", # yellow
+    "#F15854", # red
+    "#4D4D4D", # gray
+]
+
 ## logging
 #logging.basicConfig(format=LOGGING.LOG_FORMAT)
 #logger = logging.getLogger('logger')
@@ -80,6 +91,23 @@ def string_to_float(s):
     neg_trans = string.maketrans('(','-')
     return float(s.translate(neg_trans, '$,)'))
 
+def draw_pie_chart(values, total):
+    percent_to_degree = lambda p : (360 * p) / 100
+
+    pie_chart = tk.Canvas(width=200,height=200)
+    pie_chart.pack()
+    color_idx = 0
+    degree_offset = 0.00
+    for k,v in values.items():
+        percent = (v * 100) / total
+        degrees = percent_to_degree(percent)
+        print('%s: %.2f  %d pct  %d off  %d deg' % (k, v, percent, degree_offset, percent_to_degree(percent)))
+        pie_chart.create_arc((3,3,197,197), fill=RGB_COLORS[color_idx], start = degree_offset, extent = degrees)
+        degree_offset += percent_to_degree(percent)
+        color_idx += 1
+        if color_idx >= len(RGB_COLORS):
+            color_idx = 0
+
 def process_csv(filepath):
     investments = dict()
     with open(filepath, 'rU') as f:
@@ -140,6 +168,7 @@ def process_csvs(app):
         total_value += investment_totals[investment_class]
     print('Total value:$%.2f' % (total_value,))
     print(investment_totals)
+    draw_pie_chart(investment_totals, total_value)
 
 def save_session_to_file():
     pass
