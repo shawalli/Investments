@@ -2,6 +2,7 @@
 from functools import partial
 import csv
 import string
+from collections import namedtuple
 
 import Tkinter as tk
 from tkFileDialog import askopenfilenames
@@ -23,6 +24,8 @@ RGB_COLORS = [
     "#F15854", # red
     "#4D4D4D", # gray
 ]
+
+CanvasInvestmentClass = namedtuple('CanvasInvestmentClass', 'name percent color')
 
 ## logging
 #logging.basicConfig(format=LOGGING.LOG_FORMAT)
@@ -91,22 +94,53 @@ def string_to_float(s):
     neg_trans = string.maketrans('(','-')
     return float(s.translate(neg_trans, '$,)'))
 
-def draw_pie_chart(values, total):
-    percent_to_degree = lambda p : (360 * p) / 100
+class Canvas(object):
+    width = WIDTH
+    height = HEIGHT
 
-    pie_chart = tk.Canvas(width=200,height=200)
-    pie_chart.pack()
-    color_idx = 0
-    degree_offset = 0.00
-    for k,v in values.items():
-        percent = (v * 100) / total
-        degrees = percent_to_degree(percent)
-        print('%s: %.2f  %d pct  %d off  %d deg' % (k, v, percent, degree_offset, percent_to_degree(percent)))
-        pie_chart.create_arc((3,3,197,197), fill=RGB_COLORS[color_idx], start = degree_offset, extent = degrees)
-        degree_offset += percent_to_degree(percent)
-        color_idx += 1
-        if color_idx >= len(RGB_COLORS):
-            color_idx = 0
+    def __init__(self):
+        self.canvas = tk.Canvas(width = self.width, height = self.height)
+        self.canvas.pack()
+
+        self.data = list()
+        self.color_index = 0
+
+    @staticmethod
+    def _percent_to_degrees(pct):
+        return (360.00 * pct) / 100
+
+    def _get_next_color(self):
+        color = RGB_COLORS[self.color_index]
+        self.color_index += 1
+        if self.color_index >= len(RGB_COLORS):
+            self.color_index = 0
+        return color
+
+    def draw_pie_chart(self, values, total):
+        degree_offset = 0.00
+
+        for name, value in values.items():
+            percent = (value * 100) / total
+            degrees = self._percent_to_degrees(percent)
+            color = self._get_next_color()
+            print("n:%s  p:%.2f  d:%.2f  do:%.2f  c:%s" % (name, percent, degrees, degree_offset, color))
+
+            self.canvas.create_arc((3,3,197,197),
+                                 fill=color,
+                                 start=degree_offset,
+                                 extent=degrees)
+
+            self.data.append(CanvasInvestmentClass(name, 
+                                                   percent,
+                                                   color))
+
+            degree_offset += degrees
+
+#    def draw_legend(self):
+#        y_offset = 0.00
+#        for item in self.data:
+#           self.canvas.create_rectangle()
+        
 
 def process_csv(filepath):
     investments = dict()
@@ -168,7 +202,9 @@ def process_csvs(app):
         total_value += investment_totals[investment_class]
     print('Total value:$%.2f' % (total_value,))
     print(investment_totals)
-    draw_pie_chart(investment_totals, total_value)
+    cnvs = Canvas()
+    cnvs.draw_pie_chart(investment_totals, total_value)
+#    draw_legend(processed_colors)
 
 def save_session_to_file():
     pass
