@@ -26,6 +26,7 @@ OPTIONS = {
     'argv_emulation': True,
     'iconfile': 'res/app.icns',
     'plist': PLIST,
+    'packages': ['lib'],
 }
 
 setup(
