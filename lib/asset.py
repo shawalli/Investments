@@ -11,7 +11,7 @@ class AssetCollection(OrderedDict):
         super(AssetCollection, self).__init__()
 
     def __str__(self):
-        s = ['< AssetCollection >']
+        s = ['< AssetCollection @ %x >' % id(self)]
 
         for asset_class in self.asset_classes:
             s.append('  Class: %s' % (asset_class))
@@ -112,9 +112,3 @@ def import_asset_file(filepath):
 
             coll.add_asset(asset, asset_class)
     return coll
-
-
-
-
-
-

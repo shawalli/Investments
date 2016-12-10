@@ -18,12 +18,17 @@ RGB_COLORS = [
 PieChartItem = namedtuple('PieChartItem', 'name value color')
 
 class Canvas(object):
-    def __init__(self, width, height):
+    def __init__(self, app, width, height):
+
         self._data = None
         self._color_index = 0
         self._pie_chart_id = -1
         self._pie_chart_data = list()
 
+        self._app = app
+        self._log = self._app.get_log()
+
+        self._log.info("Initializing canvas with dimensions: %dpx x %dpx" % (width, height))
         self._instance = tk.Canvas(width=width,
                                    height=height)
         self._instance.pack()
@@ -39,6 +44,7 @@ class Canvas(object):
         return color
 
     def register_data(self, asset_collection):
+        self._log.debug("Registering data @ %x with canvas" % id(asset_collection))
         self._data = asset_collection
 
     @property
@@ -48,32 +54,40 @@ class Canvas(object):
 
         return (x1, y1, x2, y2)
 
-    def draw_canvas(self):
+    def draw_canvas(self, blank=False):
+        self._log.debug("Deleting canvas objects")
         self._instance.delete("all")
 
-        self.draw_pie_chart()
-
+        if blank is False:
+            self._log.debug("Drawing pie chart")
+            self.draw_pie_chart()
 
     def draw_pie_chart(self):
         class_totals = self._data.get_asset_class_sums()
         total = self._data.get_total_sum()
         start_offset = 0.00
 
+        self._log.debug("Total money to draw: $%.2f" % total)
+        self._log.debug("Total items to draw: %d" % len(class_totals.keys()))
         for asset_class, value in class_totals.items():
+            # Prepare data for drawing this slice
             percent = (value * 100) / total
             degrees = util.percent_to_degrees(percent)
             color = self._get_next_color()
-            print('mapping: %s:$%.2f   %.2fpct' % (asset_class, value, percent))
-            print('  to %.2fdeg with color:%s' % (degrees, color))
 
-            self._pie_chart_data.append(PieChartItem(asset_class,
-                                                     value,
-                                                     color))
-
+            self._log.debug(("Mapping asset class %s:$%.2f (%.2fpct), starting "
+                             "at %.2fdeg, and going to %.2fdeg, with color:%s" %
+                             (asset_class, value, percent, start_offset,
+                                (start_offset + degrees), color)))
             self._instance.create_arc(self.pie_chart_coords,
                                       fill=color,
                                       start=start_offset,
                                       extent=degrees)
+
+            self._log.debug("Appending slice data")
+            self._pie_chart_data.append(PieChartItem(asset_class,
+                                         value,
+                                         color))
 
             start_offset += degrees
 
