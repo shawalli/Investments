@@ -3,10 +3,48 @@
 import os
 import sys
 import argparse
+from collections import OrderedDict
+import ConfigParser
 
 CONFIG_FILENAME = "settings.cfg"
 
 class ConfigurationError(Exception): pass
+
+class ConfigOption(object):
+    def __init__(self, value=None, default=None, choices=None):
+        if default is not None:
+            if choices is not None and default not in choices:
+                raise ConfigurationError(("Default value \'%s\' not in choices %s" % 
+                                          (default, str(choices))))
+        self.value = value
+        self.default = default
+        self.choices = choices
+
+    def __str__(self):
+        return ("<ConfigOption: %s [%s] **%s** >" %
+                (str(self.value), str(self.default), str(self.choices)))
+
+    def get(self, default=False):
+        if self.value is None and default is True:
+            return self.default
+        return self.value
+
+# The top-level key-value pairs are ConfigParser section names and their
+# settings. The settings "value" is a dictionary where the key-value pairs
+# are the setting name and a ConfigOption.
+CONFIG_TEMPLATE = OrderedDict(
+{
+    'Global' : OrderedDict(
+    {
+        'help_email' : ConfigOption(),
+        'update_check' : ConfigOption(default='startup', choices=['startup', 'manual']),
+    }),
+    'Save' : OrderedDict(
+    {
+        'autosave' : ConfigOption(default=False, choices = [True, False]),
+        'autosave_frequency' : ConfigOption(default=10),
+    }),
+})
 
 def rebase():
     while True:
@@ -19,25 +57,93 @@ def rebase():
 
         os.chdir('..')
 
-def config_file_exists():
-    exists = os.exists(CONFIG_FILENAME)
-    # if (exists is True) and (throw_error is True):
-    #     raise ConfigurationError("Configuration file already exists.")
-
 def parse_args():
-    desc = "Configure various app settings for Investments.app."
+    desc = ("Configure various app settings for Investments.app. If creating "
+            "a new configuration file, no flags are needed.")
     parser = argparse.ArgumentParser(description=desc)
 
-    parser.add_argument("-c", "--check", default=False, action="store_true",
+    flags = parser.add_mutually_exclusive_group()
+    flags.add_argument("-c", "--check", default=False, action="store_true",
         help=("Check to see if the configuration file already exists "
               "for Investments.app."))
-    parser.add_argument("-f", "--force", default=False, action="store_true",
+    flags.add_argument("-f", "--force", default=False, action="store_true",
         help=("If Investments.app configuration file already exists, "
               "overwrite it with new settings."))
-    parser.add_argument("-u", "--update", default=False, action="store_true",
+    flags.add_argument("-u", "--update", default=False, action="store_true",
         help="If Investments.app configuration file exists, update settings.")
 
     return parser.parse_args()
+
+def process_check_flag(check_flag):
+    if check_flag is True:
+        if os.path.exists(CONFIG_FILENAME) is True:
+            sys.exit(1)
+        else:
+            sys.exit(0)
+
+def process_force_flag(force_flag):
+    if os.path.exists(CONFIG_FILENAME) is True:
+        if force_flag is True:
+            os.remove(CONFIG_FILENAME)
+        else:
+            raise OSError("Configuration file \'%s\' already exists!")
+
+def process_update_flag(update_flag):
+    pass
+
+def parse_config_template():
+    cfg = ConfigParser.ConfigParser()
+    for section, settings in CONFIG_TEMPLATE.items():
+        cfg.add_section(section)
+        for setting, option in settings.items():
+            cfg.set(section, setting, option)
+    return cfg
+
+def parse_config():
+    cfg = ConfigParser.ConfigParser()
+    cfg.read(CONFIG_FILENAME)
+
+    template = parse_config_template()
+    for section in cfg.sections():
+        if template.has_section(section) is False:
+            templat.add_section(section)
+        for setting, value in cfg.items()
+            cfg_opt = ConfigOption(value=value)
+            template.set(section, setting, cfg_opt)
+    return cfg
+
+def query_option(label, option):
+    default = option.default
+    if option.value is not None:
+        default = option.value
+    prompt = label.upper()
+    if option.choices is None:
+        if default is not None:
+            prompt += " [%s]:"
+        else:
+            prompt += ":"
+    else:
+        prompt = [prompt + ":"]
+        for choice in option.choices:
+            if default is not None and choice == default:
+                prompt.append(" *" + str(choice))
+            else:
+                prompt.append("  " + str(choice))
+        prompt = '\n'.join(prompt)
+
+    selected_value = None
+    while selected_value is None:
+        input_value = raw_input(prompt)
+        if input_value == '':
+            if default is not None:
+                input_value = default
+            else:
+                print('Value must be entered')
+        else:
+            lowercase_choices = [choice.lower() for choice in option.choices]
+            if (option.choices is not None) and \
+                (input_value.lower() not in lowercase_choices):
+                print('Value \'%s\' not a valid choice' % input_value)
 
 def main():
     exitValue = 0
@@ -47,10 +153,18 @@ def main():
 
     args = parse_args()
 
-    config_file_exists = os.exists(CONFIG_FILENAME)
-    if (args.check is True) and (config_file_exists is True):
-        exitVaue = 1
+    process_check_flag(args.check)
+
+    process_force_flag(args.force)
+
+    process_update_flag(args.update)
+
+    cfg = parse_config_template()
+    for section in cfg.sections():
+        print('Querying %s' % section.upper())
+        for label, setting in cfg.items():
+            value = query_option(label, setting)
+            print('Selected value \'%s\'' % str(value))
 
 if __name__ == "__main__":
-    exitValue = main()
-    sys.exit(exitValue)
+    main()
