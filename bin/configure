@@ -1,0 +1,56 @@
+#!/usr/bin/python2.7
+
+import os
+import sys
+import argparse
+
+CONFIG_FILENAME = "settings.cfg"
+
+class ConfigurationError(Exception): pass
+
+def rebase():
+    while True:
+        _, parent_dir = os.path.split(os.getcwd())
+
+        if parent_dir == "/":
+            raise Exception("Could not find root app directory in path!")
+        elif parent_dir == "InvestmentsApp":
+            break
+
+        os.chdir('..')
+
+def config_file_exists():
+    exists = os.exists(CONFIG_FILENAME)
+    # if (exists is True) and (throw_error is True):
+    #     raise ConfigurationError("Configuration file already exists.")
+
+def parse_args():
+    desc = "Configure various app settings for Investments.app."
+    parser = argparse.ArgumentParser(description=desc)
+
+    parser.add_argument("-c", "--check", default=False, action="store_true",
+        help=("Check to see if the configuration file already exists "
+              "for Investments.app."))
+    parser.add_argument("-f", "--force", default=False, action="store_true",
+        help=("If Investments.app configuration file already exists, "
+              "overwrite it with new settings."))
+    parser.add_argument("-u", "--update", default=False, action="store_true",
+        help="If Investments.app configuration file exists, update settings.")
+
+    return parser.parse_args()
+
+def main():
+    exitValue = 0
+
+    # Ensure we are in the InvestmentsApp root directory
+    rebase()
+
+    args = parse_args()
+
+    config_file_exists = os.exists(CONFIG_FILENAME)
+    if (args.check is True) and (config_file_exists is True):
+        exitVaue = 1
+
+if __name__ == "__main__":
+    exitValue = main()
+    sys.exit(exitValue)
