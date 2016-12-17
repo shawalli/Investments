@@ -24,6 +24,17 @@ def yaml_ordered_load(file_handle):
     return yaml.load(file_handle, OrderedLoader)
 yaml.ordered_load = yaml_ordered_load
 
+def yaml_ordered_dump(file_handle, yaml_dict):
+    SECTION_LEVEL = 0
+    SETTING_LEVEL = 1
+    ATTR_LEVEL = 2
+
+    for section, settings in yaml_dict.items():
+        file_handle.write('%s%s:\n' % ('  '*SECTION_LEVEL, section))
+        for setting_name, setting_value in settings.items():
+            file_handle.write('%s%s: %s\n' % ('  '*SETTING_LEVEL, setting_name, str(setting_value)))
+yaml.ordered_dump = yaml_ordered_dump
+
 def rebase():
     basepath = os.getcwd()
     while True:
@@ -233,12 +244,14 @@ def main():
                 print(str(v))
     print_dict(defaults)
 
-    with open(CONFIG_FILENAME, 'r') as defaults_yaml:
-        currents_config = yaml.ordered_load(defaults_yaml)
+    with open(CONFIG_FILENAME, 'r') as current_yaml:
+        currents_config = yaml.ordered_load(current_yaml)
     print_dict(currents_config)
 
     cfg = construct_cfg(defaults, currents_config)
     print_dict(cfg)
+    with open(CONFIG_FILENAME, 'w') as current_yaml:
+        yaml.ordered_dump(current_yaml, cfg)
 
 
 
