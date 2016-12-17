@@ -4,55 +4,34 @@ import os
 import sys
 import argparse
 from collections import OrderedDict
-import ConfigParser
+import yaml
 
-CONFIG_FILENAME = "settings.cfg"
+CONFIG_DEFAULTS_FILENAME = "default_settings.yaml"
+CONFIG_FILENAME = "settings.yaml"
 
 class ConfigurationError(Exception): pass
 
-class ConfigOption(object):
-    def __init__(self, value=None, default=None, choices=None):
-        if default is not None:
-            if choices is not None and default not in choices:
-                raise ConfigurationError(("Default value \'%s\' not in choices %s" % 
-                                          (default, str(choices))))
-        self.value = value
-        self.default = default
-        self.choices = choices
+# solution from http://stackoverflow.com/a/21912744
+class OrderedLoader(yaml.Loader): pass
 
-    def __str__(self):
-        return ("<ConfigOption: %s [%s] **%s** >" %
-                (str(self.value), str(self.default), str(self.choices)))
-
-    def get(self, default=False):
-        if self.value is None and default is True:
-            return self.default
-        return self.value
-
-# The top-level key-value pairs are ConfigParser section names and their
-# settings. The settings "value" is a dictionary where the key-value pairs
-# are the setting name and a ConfigOption.
-CONFIG_TEMPLATE = OrderedDict(
-{
-    'Global' : OrderedDict(
-    {
-        'help_email' : ConfigOption(),
-        'update_check' : ConfigOption(default='startup', choices=['startup', 'manual']),
-    }),
-    'Save' : OrderedDict(
-    {
-        'autosave' : ConfigOption(default=False, choices = [True, False]),
-        'autosave_frequency' : ConfigOption(default=10),
-    }),
-})
+def yaml_ordered_load(file_handle):
+    def construct_mapping(loader, node):
+        loader.flatten_mapping(node)
+        return OrderedDict(loader.construct_pairs(node))
+    OrderedLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        construct_mapping)
+    return yaml.load(file_handle, OrderedLoader)
+yaml.ordered_load = yaml_ordered_load
 
 def rebase():
+    basepath = os.getcwd()
     while True:
-        _, parent_dir = os.path.split(os.getcwd())
-
-        if parent_dir == "/":
+        basepath, parent_dir = os.path.split(basepath)
+        if basepath == "/":
             raise Exception("Could not find root app directory in path!")
-        elif parent_dir == "InvestmentsApp":
+        
+        if parent_dir == "InvestmentsApp":
             break
 
         os.chdir('..')
@@ -91,59 +70,143 @@ def process_force_flag(force_flag):
 def process_update_flag(update_flag):
     pass
 
-def parse_config_template():
-    cfg = ConfigParser.ConfigParser()
-    for section, settings in CONFIG_TEMPLATE.items():
-        cfg.add_section(section)
-        for setting, option in settings.items():
-            cfg.set(section, setting, option)
+def load_defaults():
+    with open(CONFIG_DEFAULTS_FILENAME, 'r') as defaults_yaml:
+        cfg = yaml.ordered_load(defaults_yaml)
     return cfg
 
-def parse_config():
-    cfg = ConfigParser.ConfigParser()
-    cfg.read(CONFIG_FILENAME)
+def construct_cfg(defaults_dict, current_dict=None):
+    merged_dict = OrderedDict()
+    if current_dict is None:
+        current_dict = dict()
 
-    template = parse_config_template()
-    for section in cfg.sections():
-        if template.has_section(section) is False:
-            templat.add_section(section)
-        for setting, value in cfg.items()
-            cfg_opt = ConfigOption(value=value)
-            template.set(section, setting, cfg_opt)
-    return cfg
+    sections = set(defaults_dict.keys()) | set(current_dict.keys())
 
-def query_option(label, option):
-    default = option.default
-    if option.value is not None:
-        default = option.value
-    prompt = label.upper()
-    if option.choices is None:
+    for section in sections:
+        current_settings = current_dict.get(section, dict())
+        default_settings = defaults_dict.get(section, dict())
+
+        merged_dict[section] = OrderedDict()
+        for name, setting in default_settings.items():
+            # default settings only and defaults/current settings
+            if current_settings.has_key(name) is True:
+                default_setting = current_settings[name]
+            else:
+                default_setting = setting.get('default', None)
+
+            choices = setting.get('choices', None)
+            prompt = setting.get('help', name.capitalize())
+            setting_type = setting.get('type', None)
+            value = ask_setting(prompt=prompt,
+                                  choices=choices,
+                                  default=default_setting,
+                                  setting_type=setting_type)
+            merged_dict[section][name] = value
+
+        current_only_settings = set(current_settings.keys()) - set(default_settings.keys())
+        for name in current_only_settings:
+            # current setting only
+            value = ask_setting(prompt=name,
+                                default=current_settings[name])
+            merged_dict[section][name] = value
+
+    return merged_dict
+
+def ask_choice(prompt, choices, default=None):
+    # print(prompt),
+    # print(type(prompt))
+    prompt = [prompt + ':']
+    for idx, choice in enumerate(choices, start=1):
+        if default == idx:
+            prompt.append(" *%-2d %s" % (idx, choice))
+        else:
+            prompt.append("  %-2d %s" % (idx, choice))
+    # prompt.append('\n')
+    prompt.append('')
+    prompt = '\n'.join(prompt)
+    val = None
+    while val is None:
+        input_val = raw_input(prompt)
+        if input_val == '':
+            if default is not None:
+                val = default
+            else:
+                print('Invalid choice!\n')
+        else:
+            print(input_val),
+            print(type(input_val))
+            int_val = int(input_val)
+            if int_val < 1 or int_val > len(choices):
+                print('Invalid choice!\n')
+            else:
+                val = choices[int_val - 1]
+
+    # print("USER SELECTED: %s" % val)
+    return val
+
+def get_conversion_func(conversion_type):
+    def to_str(s):
+        return str(s)
+    def to_int(s):
+        try:
+            i = int(s)
+        except ValueError:
+            try:
+                i = int(s, 10)
+            except ValueError:
+                i = int(s, 16)
+        return i
+    def to_bool(s):
+        try:
+            # first try to convert int and solve(0 = False, 1+ = True)
+            i = to_int(s)
+            b = bool(i)
+        except ValueError:
+            # at this point, the only thing it could be is a boolean string
+            b = bool(s)
+        return b
+
+    if conversion_type == 'str':
+        return to_str
+    elif conversion_type == 'int':
+        return to_int
+    elif conversion_type == 'bool':
+        return to_bool
+    elif conversion_type is None:
+        return lambda x: x
+    else:
+        raise TypeError("Conversion type \'%s\' not supported" % conversion_type)
+
+def ask_setting(prompt, choices=None, default=None, setting_type=None):
+    conversion_func = get_conversion_func(setting_type)
+    if choices is not None:
+        # print(prompt),
+        # print(type(prompt))
+        # print(choices),
+        # print(type(choices))
+        # print(default),
+        # print(type(default))
+        val = ask_choice(prompt, choices, default)
+    else:
         if default is not None:
-            prompt += " [%s]:"
+            prompt += " [%s]:" % default
         else:
             prompt += ":"
-    else:
-        prompt = [prompt + ":"]
-        for choice in option.choices:
-            if default is not None and choice == default:
-                prompt.append(" *" + str(choice))
-            else:
-                prompt.append("  " + str(choice))
-        prompt = '\n'.join(prompt)
 
-    selected_value = None
-    while selected_value is None:
-        input_value = raw_input(prompt)
-        if input_value == '':
-            if default is not None:
-                input_value = default
+        val = None
+        while val is None:
+            input_val = raw_input(prompt)
+            if input_val == '':
+                if default is not None:
+                    val = default
+                else:
+                    print('No value entered!\n')
             else:
-                print('Value must be entered')
-        else:
-            lowercase_choices = [choice.lower() for choice in option.choices]
-            if (option.choices is not None) and \
-                (input_value.lower() not in lowercase_choices):
-                print('Value \'%s\' not a valid choice' % input_value)
+                val = input_val
+
+        val = conversion_func(val)
+    print('')
+    return val
 
 def main():
     exitValue = 0
@@ -155,16 +218,30 @@ def main():
 
     process_check_flag(args.check)
 
-    process_force_flag(args.force)
+    # process_force_flag(args.force)
 
-    process_update_flag(args.update)
+    # process_update_flag(args.update)
 
-    cfg = parse_config_template()
-    for section in cfg.sections():
-        print('Querying %s' % section.upper())
-        for label, setting in cfg.items():
-            value = query_option(label, setting)
-            print('Selected value \'%s\'' % str(value))
+    defaults = load_defaults()
+    def print_dict(dct, indent=''):
+        for k, v in dct.items():
+            print(indent + k + ':'),
+            if isinstance(v, dict) is True:
+                print
+                print_dict(v, indent=indent+'  ')
+            else:
+                print(str(v))
+    print_dict(defaults)
+
+    with open(CONFIG_FILENAME, 'r') as defaults_yaml:
+        currents_config = yaml.ordered_load(defaults_yaml)
+    print_dict(currents_config)
+
+    cfg = construct_cfg(defaults, currents_config)
+    print_dict(cfg)
+
+
+
 
 if __name__ == "__main__":
     main()
