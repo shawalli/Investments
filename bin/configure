@@ -7,14 +7,17 @@ from collections import OrderedDict
 import yaml
 import logging
 
+# Script constants
 CONFIG_DEFAULTS_FILENAME = "default_settings.yaml"
 CONFIG_FILENAME = "settings.yaml"
 
+# Overall configuration error
 class ConfigurationError(Exception): pass
 
-# solution from http://stackoverflow.com/a/21912744
+# Solution from http://stackoverflow.com/a/21912744
 class OrderedLoader(yaml.Loader): pass
 
+# YaML module monkeypatches
 def yaml_ordered_load(file_handle):
     def construct_mapping(loader, node):
         loader.flatten_mapping(node)
@@ -36,6 +39,7 @@ def yaml_ordered_dump(file_handle, yaml_dict):
             file_handle.write('%s%s: %s\n' % ('  '*SETTING_LEVEL, setting_name, str(setting_value)))
 yaml.ordered_dump = yaml_ordered_dump
 
+# Rebase the script cwd
 def rebase():
     basepath = os.getcwd()
     while True:
@@ -67,27 +71,100 @@ def parse_args():
 
     return parser.parse_args()
 
-def process_check_flag(check_flag):
-    if check_flag is True:
-        if os.path.exists(CONFIG_FILENAME) is True:
-            sys.exit(1)
+# used in conjunction with default settings file
+def get_conversion_func(conversion_type):
+    def to_str(s):
+        return str(s)
+    def to_int(s):
+        try:
+            i = int(s)
+        except ValueError:
+            try:
+                i = int(s, 10)
+            except ValueError:
+                i = int(s, 16)
+        return i
+    def to_bool(s):
+        try:
+            # first try to convert int and solve(0 = False, 1+ = True)
+            i = to_int(s)
+            b = bool(i)
+        except ValueError:
+            # at this point, the only thing it could be is a boolean string
+            b = bool(s)
+        return b
+
+    if conversion_type == 'str':
+        return to_str
+    elif conversion_type == 'int':
+        return to_int
+    elif conversion_type == 'bool':
+        return to_bool
+    elif conversion_type is None:
+        return lambda x: x
+    else:
+        raise TypeError("Conversion type \'%s\' not supported" % conversion_type)
+
+# User IO logic for choosing from a list
+def ask_choice(prompt, choices, default=None):
+    prompt = [prompt + ':']
+    for idx, choice in enumerate(choices, start=1):
+        if default == idx:
+            prompt.append(" *%-2d %s" % (idx, choice))
         else:
-            sys.exit(0)
-
-def process_force_and_update_flags(force_flag, update_flag):
-    if os.path.exists(CONFIG_FILENAME) is True:
-        if update_flag is False:
-            if force_flag is True:
-                os.remove(CONFIG_FILENAME)
+            prompt.append("  %-2d %s" % (idx, choice))
+    prompt.append('')
+    prompt = '\n'.join(prompt)
+    val = None
+    while val is None:
+        input_val = raw_input(prompt)
+        if input_val == '':
+            if default is not None:
+                val = choices[default - 1]
             else:
-                sys.tracebacklimit = 0
-                raise OSError("Configuration file \'%s\' already exists!" % CONFIG_FILENAME)
+                logging.info('Invalid choice!\n')
+        else:
+            int_val = int(input_val)
+            if int_val < 1 or int_val > len(choices):
+                logging.info('Invalid choice!\n')
+            else:
+                val = choices[int_val - 1]
 
+    return val
+
+# User IO logic for choosing anything
+def ask_setting(prompt, choices=None, default=None, setting_type=None):
+    conversion_func = get_conversion_func(setting_type)
+    if choices is not None:
+        val = ask_choice(prompt, choices, default)
+    else:
+        if default is not None:
+            prompt += " [%s]:" % default
+        else:
+            prompt += ":"
+
+        val = None
+        while val is None:
+            input_val = raw_input(prompt)
+            if input_val == '':
+                if default is not None:
+                    val = default
+                else:
+                    logging.info('No value entered!\n')
+            else:
+                val = input_val
+
+        val = conversion_func(val)
+    logging.info('')
+    return val
+
+# Load default settings
 def load_defaults():
     with open(CONFIG_DEFAULTS_FILENAME, 'r') as defaults_yaml:
         cfg = yaml.ordered_load(defaults_yaml)
     return cfg
 
+# Confguration logic meat
 def construct_cfg(defaults_dict, current_dict=None):
     merged_dict = OrderedDict()
     if current_dict is None:
@@ -137,90 +214,25 @@ def construct_cfg(defaults_dict, current_dict=None):
 
     return merged_dict
 
-def ask_choice(prompt, choices, default=None):
-    prompt = [prompt + ':']
-    for idx, choice in enumerate(choices, start=1):
-        if default == idx:
-            prompt.append(" *%-2d %s" % (idx, choice))
+# Process '-c'
+def process_check_flag(check_flag):
+    if check_flag is True:
+        if os.path.exists(CONFIG_FILENAME) is True:
+            sys.exit(1)
         else:
-            prompt.append("  %-2d %s" % (idx, choice))
-    prompt.append('')
-    prompt = '\n'.join(prompt)
-    val = None
-    while val is None:
-        input_val = raw_input(prompt)
-        if input_val == '':
-            if default is not None:
-                val = choices[default - 1]
+            sys.exit(0)
+
+# Process '-f' and '-u'
+def process_force_and_update_flags(force_flag, update_flag):
+    if os.path.exists(CONFIG_FILENAME) is True:
+        if update_flag is False:
+            if force_flag is True:
+                os.remove(CONFIG_FILENAME)
             else:
-                logging.info('Invalid choice!\n')
-        else:
-            int_val = int(input_val)
-            if int_val < 1 or int_val > len(choices):
-                logging.info('Invalid choice!\n')
-            else:
-                val = choices[int_val - 1]
+                sys.tracebacklimit = 0
+                raise OSError("Configuration file \'%s\' already exists!" % CONFIG_FILENAME)
 
-    return val
-
-def get_conversion_func(conversion_type):
-    def to_str(s):
-        return str(s)
-    def to_int(s):
-        try:
-            i = int(s)
-        except ValueError:
-            try:
-                i = int(s, 10)
-            except ValueError:
-                i = int(s, 16)
-        return i
-    def to_bool(s):
-        try:
-            # first try to convert int and solve(0 = False, 1+ = True)
-            i = to_int(s)
-            b = bool(i)
-        except ValueError:
-            # at this point, the only thing it could be is a boolean string
-            b = bool(s)
-        return b
-
-    if conversion_type == 'str':
-        return to_str
-    elif conversion_type == 'int':
-        return to_int
-    elif conversion_type == 'bool':
-        return to_bool
-    elif conversion_type is None:
-        return lambda x: x
-    else:
-        raise TypeError("Conversion type \'%s\' not supported" % conversion_type)
-
-def ask_setting(prompt, choices=None, default=None, setting_type=None):
-    conversion_func = get_conversion_func(setting_type)
-    if choices is not None:
-        val = ask_choice(prompt, choices, default)
-    else:
-        if default is not None:
-            prompt += " [%s]:" % default
-        else:
-            prompt += ":"
-
-        val = None
-        while val is None:
-            input_val = raw_input(prompt)
-            if input_val == '':
-                if default is not None:
-                    val = default
-                else:
-                    logging.info('No value entered!\n')
-            else:
-                val = input_val
-
-        val = conversion_func(val)
-    logging.info('')
-    return val
-
+# Debug config dump
 def print_config(cfg, indent=''):
     for k, v in cfg.items():
         logging.debug(indent + k + ':'),
