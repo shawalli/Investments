@@ -5,6 +5,7 @@ import sys
 import argparse
 from collections import OrderedDict
 import yaml
+import logging
 
 CONFIG_DEFAULTS_FILENAME = "default_settings.yaml"
 CONFIG_FILENAME = "settings.yaml"
@@ -151,11 +152,11 @@ def ask_choice(prompt, choices, default=None):
             if default is not None:
                 val = choices[default - 1]
             else:
-                print('Invalid choice!\n')
+                logging.info('Invalid choice!\n')
         else:
             int_val = int(input_val)
             if int_val < 1 or int_val > len(choices):
-                print('Invalid choice!\n')
+                logging.info('Invalid choice!\n')
             else:
                 val = choices[int_val - 1]
 
@@ -211,16 +212,28 @@ def ask_setting(prompt, choices=None, default=None, setting_type=None):
                 if default is not None:
                     val = default
                 else:
-                    print('No value entered!\n')
+                    logging.info('No value entered!\n')
             else:
                 val = input_val
 
         val = conversion_func(val)
-    print('')
+    logging.info('')
     return val
+
+def print_config(cfg, indent=''):
+    for k, v in cfg.items():
+        logging.debug(indent + k + ':'),
+        if isinstance(v, dict) is True:
+            logging.debug('')
+            print_config(v, indent=indent+'  ')
+        else:
+            logging.debug(str(v))
 
 def main():
     exitValue = 0
+
+    # Enable sane stdout
+    logging.basicConfig(format='%(message)s', level=logging.INFO)
 
     # Ensure we are in the InvestmentsApp root directory
     rebase()
@@ -234,14 +247,17 @@ def main():
     # process_update_flag(args.update)
 
     defaults = load_defaults()
+    print_config(defaults)
 
     if os.path.exists(CONFIG_FILENAME):
         with open(CONFIG_FILENAME, 'r') as current_yaml:
             currents_config = yaml.ordered_load(current_yaml)
+        print_config(currents_config)
     else:
         currents_config = None
 
     cfg = construct_cfg(defaults, currents_config)
+    print_config(cfg)
     with open(CONFIG_FILENAME, 'w') as current_yaml:
         yaml.ordered_dump(current_yaml, cfg)
 
