@@ -101,7 +101,22 @@ def construct_cfg(defaults_dict, current_dict=None):
         for name, setting in default_settings.items():
             # default settings only and defaults/current settings
             if current_settings.has_key(name) is True:
-                default_setting = current_settings[name]
+                # current settings has a value for key
+                if setting.has_key('choices') is True:
+                    # current setting came from a list in default settings
+                    try:
+                        # convert value to index from choices list
+                        print('CUR CHOICE'),
+                        print(current_settings[name]),
+                        print(setting['choices'].index(current_settings[name]))
+                        default_setting = setting['choices'].index(current_settings[name]) + 1
+                    except ValueError:
+                        # For some reason, the current setting wasn't in the list from
+                        # default settings. Fall back to default
+                        default_setting = setting.get('default', None)
+                else:
+                    # Not from choices list, so just set current value as default
+                    default_setting = current_settings[name]
             else:
                 default_setting = setting.get('default', None)
 
@@ -126,6 +141,9 @@ def construct_cfg(defaults_dict, current_dict=None):
 def ask_choice(prompt, choices, default=None):
     # print(prompt),
     # print(type(prompt))
+    print("CHOICE:"),
+    print(choices),
+    print(default)
     prompt = [prompt + ':']
     for idx, choice in enumerate(choices, start=1):
         if default == idx:
@@ -140,7 +158,7 @@ def ask_choice(prompt, choices, default=None):
         input_val = raw_input(prompt)
         if input_val == '':
             if default is not None:
-                val = default
+                val = choices[default - 1]
             else:
                 print('Invalid choice!\n')
         else:
