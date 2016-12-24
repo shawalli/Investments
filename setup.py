@@ -10,7 +10,7 @@ from setuptools import setup
 APP = ['Investments.py']
 APP_NAME = 'Investments'
 
-DATA_FILES = []
+DATA_FILES = ['settings.yaml']
 
 PLIST = {
     'CFBundleName': APP_NAME,
