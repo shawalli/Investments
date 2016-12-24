@@ -41,6 +41,7 @@ def rebase():
     while True:
         basepath, parent_dir = os.path.split(basepath)
         if basepath == "/":
+            sys.tracebacklimit = 0
             raise Exception("Could not find root app directory in path!")
         
         if parent_dir == "InvestmentsApp":
@@ -57,10 +58,11 @@ def parse_args():
     flags.add_argument("-c", "--check", default=False, action="store_true",
         help=("Check to see if the configuration file already exists "
               "for Investments.app."))
-    flags.add_argument("-f", "--force", default=False, action="store_true",
+    mutexcl_flags = parser.add_mutually_exclusive_group()
+    mutexcl_flags.add_argument("-f", "--force", default=False, action="store_true",
         help=("If Investments.app configuration file already exists, "
               "overwrite it with new settings."))
-    flags.add_argument("-u", "--update", default=False, action="store_true",
+    mutexcl_flags.add_argument("-u", "--update", default=False, action="store_true",
         help="If Investments.app configuration file exists, update settings.")
 
     return parser.parse_args()
@@ -72,15 +74,14 @@ def process_check_flag(check_flag):
         else:
             sys.exit(0)
 
-def process_force_flag(force_flag):
+def process_force_and_update_flags(force_flag, update_flag):
     if os.path.exists(CONFIG_FILENAME) is True:
-        if force_flag is True:
-            os.remove(CONFIG_FILENAME)
-        else:
-            raise OSError("Configuration file \'%s\' already exists!")
-
-def process_update_flag(update_flag):
-    pass
+        if update_flag is False:
+            if force_flag is True:
+                os.remove(CONFIG_FILENAME)
+            else:
+                sys.tracebacklimit = 0
+                raise OSError("Configuration file \'%s\' already exists!" % CONFIG_FILENAME)
 
 def load_defaults():
     with open(CONFIG_DEFAULTS_FILENAME, 'r') as defaults_yaml:
@@ -238,30 +239,31 @@ def main():
     # Ensure we are in the InvestmentsApp root directory
     rebase()
 
-    args = parse_args()
+    try:
+        args = parse_args()
 
-    process_check_flag(args.check)
+        process_check_flag(args.check)
 
-    # process_force_flag(args.force)
+        process_force_and_update_flags(args.force, args.update)
 
-    # process_update_flag(args.update)
+        defaults = load_defaults()
+        print_config(defaults)
 
-    defaults = load_defaults()
-    print_config(defaults)
+        if os.path.exists(CONFIG_FILENAME):
+            with open(CONFIG_FILENAME, 'r') as current_yaml:
+                currents_config = yaml.ordered_load(current_yaml)
+            # An empty file returns None instead of an empty dict...
+            if currents_config is not None:
+                print_config(currents_config)
+        else:
+            currents_config = None
 
-    if os.path.exists(CONFIG_FILENAME):
-        with open(CONFIG_FILENAME, 'r') as current_yaml:
-            currents_config = yaml.ordered_load(current_yaml)
-        # An empty file returns None instead of an empty dict...
-        if currents_config is not None:
-            print_config(currents_config)
-    else:
-        currents_config = None
-
-    cfg = construct_cfg(defaults, currents_config)
-    print_config(cfg)
-    with open(CONFIG_FILENAME, 'w') as current_yaml:
-        yaml.ordered_dump(current_yaml, cfg)
+        cfg = construct_cfg(defaults, currents_config)
+        print_config(cfg)
+        with open(CONFIG_FILENAME, 'w') as current_yaml:
+            yaml.ordered_dump(current_yaml, cfg)
+    except KeyboardInterrupt:
+        logging.info('')
 
 if __name__ == "__main__":
     main()
