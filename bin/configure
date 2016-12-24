@@ -252,7 +252,9 @@ def main():
     if os.path.exists(CONFIG_FILENAME):
         with open(CONFIG_FILENAME, 'r') as current_yaml:
             currents_config = yaml.ordered_load(current_yaml)
-        print_config(currents_config)
+        # An empty file returns None instead of an empty dict...
+        if currents_config is not None:
+            print_config(currents_config)
     else:
         currents_config = None
 
