@@ -106,9 +106,6 @@ def construct_cfg(defaults_dict, current_dict=None):
                     # current setting came from a list in default settings
                     try:
                         # convert value to index from choices list
-                        print('CUR CHOICE'),
-                        print(current_settings[name]),
-                        print(setting['choices'].index(current_settings[name]))
                         default_setting = setting['choices'].index(current_settings[name]) + 1
                     except ValueError:
                         # For some reason, the current setting wasn't in the list from
@@ -139,18 +136,12 @@ def construct_cfg(defaults_dict, current_dict=None):
     return merged_dict
 
 def ask_choice(prompt, choices, default=None):
-    # print(prompt),
-    # print(type(prompt))
-    print("CHOICE:"),
-    print(choices),
-    print(default)
     prompt = [prompt + ':']
     for idx, choice in enumerate(choices, start=1):
         if default == idx:
             prompt.append(" *%-2d %s" % (idx, choice))
         else:
             prompt.append("  %-2d %s" % (idx, choice))
-    # prompt.append('\n')
     prompt.append('')
     prompt = '\n'.join(prompt)
     val = None
@@ -162,15 +153,12 @@ def ask_choice(prompt, choices, default=None):
             else:
                 print('Invalid choice!\n')
         else:
-            print(input_val),
-            print(type(input_val))
             int_val = int(input_val)
             if int_val < 1 or int_val > len(choices):
                 print('Invalid choice!\n')
             else:
                 val = choices[int_val - 1]
 
-    # print("USER SELECTED: %s" % val)
     return val
 
 def get_conversion_func(conversion_type):
@@ -209,12 +197,6 @@ def get_conversion_func(conversion_type):
 def ask_setting(prompt, choices=None, default=None, setting_type=None):
     conversion_func = get_conversion_func(setting_type)
     if choices is not None:
-        # print(prompt),
-        # print(type(prompt))
-        # print(choices),
-        # print(type(choices))
-        # print(default),
-        # print(type(default))
         val = ask_choice(prompt, choices, default)
     else:
         if default is not None:
@@ -252,27 +234,16 @@ def main():
     # process_update_flag(args.update)
 
     defaults = load_defaults()
-    def print_dict(dct, indent=''):
-        for k, v in dct.items():
-            print(indent + k + ':'),
-            if isinstance(v, dict) is True:
-                print
-                print_dict(v, indent=indent+'  ')
-            else:
-                print(str(v))
-    print_dict(defaults)
 
-    with open(CONFIG_FILENAME, 'r') as current_yaml:
-        currents_config = yaml.ordered_load(current_yaml)
-    print_dict(currents_config)
+    if os.path.exists(CONFIG_FILENAME):
+        with open(CONFIG_FILENAME, 'r') as current_yaml:
+            currents_config = yaml.ordered_load(current_yaml)
+    else:
+        currents_config = None
 
     cfg = construct_cfg(defaults, currents_config)
-    print_dict(cfg)
     with open(CONFIG_FILENAME, 'w') as current_yaml:
         yaml.ordered_dump(current_yaml, cfg)
-
-
-
 
 if __name__ == "__main__":
     main()
