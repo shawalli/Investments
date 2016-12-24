@@ -2,19 +2,3 @@ global:
   help_email:
     type: str
     help: Help Email Address
-  update_check:
-    help: Update Check Frequency
-    default: 1
-    choices:
-      - startup
-      - never
-
-save:
-  autosave:
-    type: bool
-    help: Autosave
-    default: False
-  autosave_frequency:
-    type: int
-    help: Autosave Frequency (minutes)
-    default: 10
