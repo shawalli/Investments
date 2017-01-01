@@ -12,6 +12,17 @@ APP_NAME = 'Investments'
 
 DATA_FILES = ['settings.yaml']
 
+PACKAGES = [
+    # app packages
+    'model',
+    'view',
+    'controller',
+    'util',
+
+    # dependencies
+    'sqlalchemy',
+]
+
 PLIST = {
     'CFBundleName': APP_NAME,
     'CFBundleDisplayName': APP_NAME,
@@ -26,7 +37,7 @@ OPTIONS = {
     'argv_emulation': True,
     'iconfile': 'res/app.icns',
     'plist': PLIST,
-    'packages': ['lib'],
+    'packages': PACKAGES,
 }
 
 setup(

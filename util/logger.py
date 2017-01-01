@@ -3,10 +3,6 @@ import os
 import logging
 import tempfile
 
-# This is done so that anyone who imports this logging module also gets all of
-# the attributes from Python's logging module
-from logging import *
-
 ################################################################################
 # logging module missing functionality
 ################################################################################
@@ -121,58 +117,44 @@ LOG_FORMAT = '[ %(levelname)-5s ] %(asctime)-15s: %(message)s'
 class LogfileHandler(MemoryHandler):
     def shouldFlush(self, record):
         return False
+
+    @property
+    def baseFilename(self):
+        return self.target.baseFilename
+
     def toFile(self):
-        with open(self.target.baseFilename, 'w') as f:
+        with open(self.baseFilename, 'w') as f:
             for record in self.buffer:
                 f.write(record.getMessage() + '\n')
         self.buffer = []
-    # def close(self):
-    #     # First, shut down the logfile handler
-    #     super(LogfileHandler, self).close()
 
-    #     # Once the logfile handler is closed, close the file handler that was 
-    #     # egistered to it. This code was more or less copied from
-    #     # logging.shutdown().
-    #     try:
-    #         self.target.acquire()
-    #         self.target.flush()
-    #         self.target.close()
-    #     except (IOError, ValueError):
-    #         pass
-    #     finally:
-    #         self.target.release()
+    def close(self):
+        self.target.acquire()
+        self.target.flush()
+        self.target.close()
+        os.remove(self.baseFilename)
 
 def initialize_log(app_name):
-    logging.basicConfig(format=LOG_FORMAT)
-    logger = logging.getLogger(app_name)
-    logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(fmt=LOG_FORMAT)
+    setattr(logging, 'logfile_name', app_name)
 
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-    console_handler.setFormatter(formatter)
+    logging.basicConfig(format=LOG_FORMAT, level=logging.DEBUG)
+    formatter = logging.Formatter(fmt=LOG_FORMAT)
 
     (temp_handle, temp_path) = tempfile.mkstemp(suffix='.log', prefix='investments_app_')
     file_handler = logging.FileHandler(temp_path, delay=True)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
-    logger.info("Log file created at: %s" % temp_path)
+    logging.info("Log file created at: %s" % temp_path)
 
     logfile_handler = LogfileHandler(1024*10, logging.DEBUG, file_handler)
     logfile_handler.setFormatter(formatter)
-    logfile_handler._log_filename = temp_path
-    logger._logfile_handler = logfile_handler
 
-    logger.addHandler(logfile_handler)
+    log = logging.getLogger()
+    log.addHandler(logfile_handler)
 
-    return logger
+def write_log_to_file():
+    log = logging.getLogger()
+    logfile_handler = log.handlers[-1]
 
-def write_log_to_file(log_handle):
-    log_handle._logfile_handler.toFile()
-
-def finalize_log(log_handle):
-    log_handle.debug("Shutting down logging module and removing log file")
-    log_filename = log_handle._logfile_handler._log_filename
-    logging.shutdown()
-
-    os.remove(log_filename)
+    logging.info('Writing log to file: %s' % logfile_handler.baseFilename)
+    logfile_handler.toFile()
