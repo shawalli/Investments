@@ -59,6 +59,12 @@ class ChartView(CanvasView):
             self.canvas.create_oval(*self.chart_location,
                                     fill=colors.EMPTY_COLOR)
             colorized_data = None
+        elif len(data) == 1:
+            name, value = data[0]
+            color = next(colors)
+            self.canvas.create_oval(*self.chart_location,
+                                    fill=color)
+            colorized_data = [(name, value, 100.00, color),]
         else:
             colorized_data = list()
             total = sum([value for name, value in data])
