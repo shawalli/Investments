@@ -1,0 +1,9 @@
+#!/bin/bash
+
+./bin/deploy
+
+cd dist/
+echo "Compressing app into zip for release"
+zip -r --symlinks Investments.app.zip Investments.app
+echo
+echo "Done."
